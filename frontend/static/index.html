@@ -580,7 +580,7 @@
     <!-- Primary Aircraft Selection -->
     <div class="fleet-section">
       <label id="ac-section-label">Deploy Candidate Aircraft</label>
-      <div class="aircraft-grid">
+      <div id="primary-fleet-grid" class="aircraft-grid">
         <div class="ac-card selected" onclick="selectAircraft('A321XLR', this)">
           <div class="ac-name">A321XLR <span class="ac-pill pill-xlr">Long Narrow</span></div>
           <div class="ac-specs"><span>4,700 NM</span><span>182 seats</span></div>
@@ -611,7 +611,7 @@
     <!-- Benchmark Aircraft Selection (Visible in 'vs' Mode) -->
     <div id="vs-section" class="fleet-section" style="display:none;">
       <label style="color:var(--accent-gold);">Benchmark Opponent Aircraft</label>
-      <div class="aircraft-grid">
+      <div id="vs-fleet-grid" class="aircraft-grid">
         <div class="ac-card" onclick="selectVsAircraft('A321XLR', this)">
           <div class="ac-name">A321XLR <span class="ac-pill pill-xlr">182s</span></div>
         </div>
@@ -887,16 +887,29 @@ function setMode(mode) {
 }
 
 function selectAircraft(model, el) {
-  selectedAircraft = model;
-  document.querySelectorAll(".fleet-section:first-of-type .ac-card").forEach(c => c.classList.remove("selected"));
-  el.classList.add("selected");
-  document.getElementById("hud-plane").textContent = model;
+  const isAlreadySelected = el.classList.contains("selected");
+  document.querySelectorAll("#primary-fleet-grid .ac-card").forEach(c => c.classList.remove("selected"));
+
+  if (isAlreadySelected) {
+    selectedAircraft = null;
+    document.getElementById("hud-plane").textContent = "None";
+  } else {
+    selectedAircraft = model;
+    el.classList.add("selected");
+    document.getElementById("hud-plane").textContent = model;
+  }
 }
 
 function selectVsAircraft(model, el) {
-  selectedVsAircraft = model;
-  document.querySelectorAll("#vs-section .ac-card").forEach(c => c.classList.remove("selected-vs"));
-  el.classList.add("selected-vs");
+  const isAlreadySelected = el.classList.contains("selected-vs");
+  document.querySelectorAll("#vs-fleet-grid .ac-card").forEach(c => c.classList.remove("selected-vs"));
+
+  if (isAlreadySelected) {
+    selectedVsAircraft = null;
+  } else {
+    selectedVsAircraft = model;
+    el.classList.add("selected-vs");
+  }
 }
 
 function updateLF(val) {
@@ -1018,6 +1031,14 @@ function dispatchRouteEvaluation() {
 
   if (orig === dest) {
     alert("Origin and destination airports must be different.");
+    return;
+  }
+  if (!selectedAircraft) {
+    alert("Please select a Candidate Aircraft first.");
+    return;
+  }
+  if (currentMode === "vs" && !selectedVsAircraft) {
+    alert("Please select a Benchmark Opponent Aircraft for the Fleet Duel.");
     return;
   }
 

@@ -1,0 +1,37 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "aus_runway_specs",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "What is the longest runway length at Austin-Bergstrom International Airport (AUS)?"}]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [{"text": "Austin-Bergstrom International Airport (AUS) has a longest runway of 12,250 feet."}]
+        }
+      }
+    },
+    {
+      "eval_case_id": "sea_hnd_distance",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "What is the Great Circle flight distance in nautical miles between Seattle (SEA) and Tokyo Haneda (HND)?"}]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [{"text": "The Great Circle distance between Seattle (SEA) and Tokyo Haneda (HND) is approximately 4,160 to 4,200 nautical miles."}]
+        }
+      }
+    },
+    {
+      "eval_case_id": "route_profitability_aus_dub",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Model the financial profitability and annual EBITDA for opening a daily nonstop route between Austin (AUS) and Dublin (DUB) with an Airbus A321XLR at an 80% load factor and $680 average fare."}]
+      }
+    }
+  ]
+}

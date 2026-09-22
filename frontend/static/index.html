@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AeroNetwork Planner | Flight Deck & Route Dispatch Console</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&family=Material+Symbols+Outlined">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root {
+    --bg-main: #0b1120;
+    --panel-bg: #131d33;
+    --panel-border: #1e2942;
+    --card-surface: #18243e;
+    --accent-blue: #38bdf8;
+    --accent-cyan: #06b6d4;
+    --accent-green: #10b981;
+    --accent-gold: #f59e0b;
+    --accent-purple: #818cf8;
+    --text-primary: #f8fafc;
+    --text-muted: #94a3b8;
+    --text-dim: #64748b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Top Navigation */
+  header {
+    background: #0f172a;
+    border-bottom: 1px solid var(--panel-border);
+    padding: 0.75rem 1.8rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .brand { display: flex; align-items: center; gap: 0.75rem; }
+  .brand-logo {
+    background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+  }
+  .brand-logo .material-symbols-outlined { color: #fff; font-size: 22px; }
+  .brand-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .badge-live {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .badge-live::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 6px #34d399;
+  }
+
+  /* Main Workspace: Split Left (Controls) and Right (Visual Map + Executive Terminal) */
+  .workspace {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 440px 1fr;
+    overflow: hidden;
+  }
+
+  /* Left Panel */
+  .dispatch-panel {
+    background: var(--panel-bg);
+    border-right: 1px solid var(--panel-border);
+    padding: 1.1rem 1.4rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 0.65rem;
+  }
+  .panel-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent-blue);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .mode-switch {
+    display: flex;
+    background: #090e1a;
+    border-radius: 8px;
+    padding: 3px;
+    border: 1px solid var(--panel-border);
+  }
+  .mode-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.45rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mode-btn.active {
+    background: var(--card-surface);
+    color: var(--accent-blue);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+
+  .route-card {
+    background: var(--card-surface);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .route-airports {
+    display: grid;
+    grid-template-columns: 1fr 32px 1fr;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .select-group label {
+    display: block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-dim);
+    margin-bottom: 0.3rem;
+  }
+  select {
+    width: 100%;
+    background: #090e1a;
+    color: #fff;
+    border: 1px solid var(--panel-border);
+    padding: 0.6rem 0.5rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+  }
+  select:focus { border-color: var(--accent-blue); }
+  .route-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-blue);
+    margin-top: 1.1rem;
+  }
+
+  /* Fleet Cards */
+  .fleet-section label {
+    display: block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-dim);
+    margin-bottom: 0.4rem;
+  }
+  .aircraft-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+  }
+  .ac-card {
+    background: var(--card-surface);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 0.6rem 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .ac-card:hover { border-color: var(--accent-blue); transform: translateY(-1px); }
+  .ac-card.selected {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+  }
+  .ac-card.selected-vs {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+  }
+  .ac-name {
+    font-weight: 700;
+    font-size: 0.85rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .ac-pill {
+    font-size: 0.62rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    font-weight: 700;
+  }
+  .pill-xlr { background: #0369a1; color: #bae6fd; }
+  .pill-wide { background: #6b21a8; color: #f3e8ff; }
+  .pill-narrow { background: #334155; color: #cbd5e1; }
+  .ac-specs {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* Sliders */
+  .levers-card {
+    background: var(--card-surface);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+  .lever-item { display: flex; flex-direction: column; gap: 0.3rem; }
+  .lever-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+  .lever-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    background: #090e1a;
+    height: 5px;
+    border-radius: 3px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+  }
+  .freq-selector { display: flex; gap: 0.35rem; }
+  .freq-btn {
+    flex: 1;
+    background: #090e1a;
+    border: 1px solid var(--panel-border);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 0.4rem 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .freq-btn.active {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+  }
+
+  .launch-btn {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 0.9rem 1.1rem;
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    box-shadow: 0 4px 15px rgba(2, 132, 199, 0.35);
+    transition: all 0.2s;
+  }
+  .launch-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(2, 132, 199, 0.5);
+  }
+
+  /* RIGHT PANEL: Flight Radar Visualizer + Executive Log */
+  .results-panel {
+    display: flex;
+    flex-direction: column;
+    background: #090e1a;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Live Radar Map Container */
+  .radar-container {
+    height: 290px;
+    background: #070d18;
+    border-bottom: 1px solid var(--panel-border);
+    position: relative;
+    flex-shrink: 0;
+  }
+  #flight-map {
+    width: 100%;
+    height: 100%;
+    background: #090e1a;
+  }
+
+  /* Cockpit HUD Overlay */
+  .hud-overlay {
+    position: absolute;
+    top: 12px;
+    left: 14px;
+    z-index: 1000;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 10px;
+    padding: 0.65rem 0.9rem;
+    display: flex;
+    gap: 1.25rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    pointer-events: none;
+  }
+  .hud-stat {
+    display: flex;
+    flex-direction: column;
+  }
+  .hud-label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+  .hud-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #fff;
+  }
+  .hud-val.accent { color: var(--accent-blue); }
+
+  /* Custom Leaflet Pulsing Markers & Animated Airplane */
+  .airport-ping {
+    width: 14px;
+    height: 14px;
+    background: #0284c7;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    position: relative;
+    box-shadow: 0 0 10px #38bdf8;
+  }
+  .airport-ping::after {
+    content: '';
+    position: absolute;
+    top: -6px; left: -6px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px solid #38bdf8;
+    animation: radar-ping 1.8s infinite ease-out;
+  }
+  @keyframes radar-ping {
+    0% { transform: scale(0.6); opacity: 1; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+
+  .airplane-icon {
+    font-size: 20px;
+    color: #38bdf8;
+    filter: drop-shadow(0 0 8px #38bdf8);
+    transform-origin: center center;
+    transition: transform 0.05s linear;
+  }
+
+  /* Log Area */
+  #log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .msg.user { align-self: flex-end; max-width: 80%; }
+  .msg.agent { align-self: flex-start; width: 100%; max-width: 920px; }
+  .bubble {
+    background: #111a2e;
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 1.1rem 1.35rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    line-height: 1.6;
+    font-size: 0.92rem;
+  }
+  .msg.user .bubble {
+    background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
+    color: #fff;
+    border: none;
+  }
+  .msg.agent .bubble table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    background: #0e1526;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .msg.agent .bubble th, .msg.agent .bubble td {
+    border: 1px solid #1e293b;
+    padding: 0.6rem 0.85rem;
+    text-align: left;
+  }
+  .msg.agent .bubble th {
+    background: #162035;
+    font-weight: 700;
+    color: var(--accent-blue);
+  }
+  .msg.agent .bubble tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+  .msg.agent .bubble blockquote {
+    border-left: 4px solid var(--accent-cyan);
+    background: rgba(6, 182, 212, 0.08);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 0 8px 8px 0;
+    color: #38bdf8;
+    font-weight: 600;
+  }
+
+  .chat-bar {
+    padding: 0.75rem 1.4rem;
+    background: #0f172a;
+    border-top: 1px solid var(--panel-border);
+    display: flex;
+    gap: 0.65rem;
+  }
+  .chat-bar input {
+    flex: 1;
+    background: #090e1a;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 0.7rem 0.95rem;
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.88rem;
+    outline: none;
+  }
+  .chat-bar input:focus { border-color: var(--accent-blue); }
+  .chat-bar button {
+    background: var(--card-surface);
+    border: 1px solid var(--panel-border);
+    color: var(--accent-blue);
+    padding: 0.7rem 1.1rem;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .chat-bar button:hover { background: #1e293b; border-color: var(--accent-blue); }
+
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-logo">
+      <span class="material-symbols-outlined">flight_takeoff</span>
+    </div>
+    <div>
+      <div class="brand-title">
+        AeroNetwork Planner
+        <span class="badge-live">Live Flight Radar HUD</span>
+      </div>
+    </div>
+  </div>
+  <div style="font-size:0.78rem; color:var(--text-muted);">
+    Vertex AI Reasoning Engine • Carto DarkMatter Geodesic Navigation
+  </div>
+</header>
+
+<div class="workspace">
+  <!-- LEFT: Interactive Gamified Route Dispatch Console -->
+  <div class="dispatch-panel">
+    <div class="panel-header">
+      <div class="panel-title">
+        <span class="material-symbols-outlined" style="font-size:18px;">tune</span>
+        Route Configuration
+      </div>
+      <div class="mode-switch">
+        <button id="mode-single" class="mode-btn active" onclick="setMode('single')">Single Aircraft</button>
+        <button id="mode-vs" class="mode-btn" onclick="setMode('vs')">⚔️ Fleet Duel</button>
+      </div>
+    </div>
+
+    <!-- City Pair Dropdowns -->
+    <div class="route-card">
+      <div class="route-airports">
+        <div class="select-group">
+          <label>Origin Hub</label>
+          <select id="origin-select" onchange="onAirportsChanged()">
+            <option value="AUS" selected>Austin (AUS)</option>
+            <option value="BOS">Boston (BOS)</option>
+            <option value="JFK">New York (JFK)</option>
+            <option value="ORD">Chicago (ORD)</option>
+            <option value="SEA">Seattle (SEA)</option>
+            <option value="DFW">Dallas (DFW)</option>
+            <option value="DEN">Denver (DEN)</option>
+            <option value="LAX">Los Angeles (LAX)</option>
+            <option value="MIA">Miami (MIA)</option>
+          </select>
+        </div>
+        <div class="route-arrow">
+          <span class="material-symbols-outlined">trending_flat</span>
+        </div>
+        <div class="select-group">
+          <label>Destination</label>
+          <select id="dest-select" onchange="onAirportsChanged()">
+            <option value="DUB" selected>Dublin (DUB)</option>
+            <option value="LHR">London Heathrow (LHR)</option>
+            <option value="CDG">Paris (CDG)</option>
+            <option value="FRA">Frankfurt (FRA)</option>
+            <option value="MAD">Madrid (MAD)</option>
+            <option value="HND">Tokyo Haneda (HND)</option>
+            <option value="SYD">Sydney (SYD)</option>
+            <option value="SIN">Singapore (SIN)</option>
+            <option value="DXB">Dubai (DXB)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Primary Aircraft Selection -->
+    <div class="fleet-section">
+      <label id="ac-section-label">Deploy Candidate Aircraft</label>
+      <div class="aircraft-grid">
+        <div class="ac-card selected" onclick="selectAircraft('A321XLR', this)">
+          <div class="ac-name">A321XLR <span class="ac-pill pill-xlr">Long Narrow</span></div>
+          <div class="ac-specs"><span>4,700 NM</span><span>182 seats</span></div>
+        </div>
+        <div class="ac-card" onclick="selectAircraft('B787-8', this)">
+          <div class="ac-name">B787-8 <span class="ac-pill pill-wide">Widebody</span></div>
+          <div class="ac-specs"><span>7,355 NM</span><span>248 seats</span></div>
+        </div>
+        <div class="ac-card" onclick="selectAircraft('A350-900', this)">
+          <div class="ac-name">A350-900 <span class="ac-pill pill-wide">Flagship</span></div>
+          <div class="ac-specs"><span>8,100 NM</span><span>325 seats</span></div>
+        </div>
+        <div class="ac-card" onclick="selectAircraft('A330-900neo', this)">
+          <div class="ac-name">A330neo <span class="ac-pill pill-wide">Widebody</span></div>
+          <div class="ac-specs"><span>7,200 NM</span><span>287 seats</span></div>
+        </div>
+        <div class="ac-card" onclick="selectAircraft('A321neo', this)">
+          <div class="ac-name">A321neo <span class="ac-pill pill-narrow">Narrowbody</span></div>
+          <div class="ac-specs"><span>3,500 NM</span><span>196 seats</span></div>
+        </div>
+        <div class="ac-card" onclick="selectAircraft('B737-MAX8', this)">
+          <div class="ac-name">737 MAX 8 <span class="ac-pill pill-narrow">Narrowbody</span></div>
+          <div class="ac-specs"><span>3,500 NM</span><span>178 seats</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Benchmark Aircraft Selection (Visible in 'vs' Mode) -->
+    <div id="vs-section" class="fleet-section" style="display:none;">
+      <label style="color:var(--accent-gold);">Benchmark Opponent Aircraft</label>
+      <div class="aircraft-grid">
+        <div class="ac-card" onclick="selectVsAircraft('A321XLR', this)">
+          <div class="ac-name">A321XLR <span class="ac-pill pill-xlr">182s</span></div>
+        </div>
+        <div class="ac-card selected-vs" onclick="selectVsAircraft('B787-8', this)">
+          <div class="ac-name">B787-8 <span class="ac-pill pill-wide">248s</span></div>
+        </div>
+        <div class="ac-card" onclick="selectVsAircraft('A350-900', this)">
+          <div class="ac-name">A350-900 <span class="ac-pill pill-wide">325s</span></div>
+        </div>
+        <div class="ac-card" onclick="selectVsAircraft('A330-900neo', this)">
+          <div class="ac-name">A330neo <span class="ac-pill pill-wide">287s</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Financial Levers -->
+    <div class="levers-card">
+      <div class="lever-item">
+        <div class="lever-header">
+          <span>Projected Load Factor</span>
+          <span id="lf-display" class="lever-value" style="color:#38bdf8;">82%</span>
+        </div>
+        <input id="lf-slider" type="range" min="40" max="100" value="82" oninput="updateLF(this.value)">
+      </div>
+
+      <div class="lever-item">
+        <div class="lever-header">
+          <span>Average Passenger Fare (USD)</span>
+          <span id="fare-display" class="lever-value" style="color:#34d399;">$680</span>
+        </div>
+        <input id="fare-slider" type="range" min="200" max="1600" step="20" value="680" oninput="updateFare(this.value)">
+      </div>
+
+      <div class="lever-item">
+        <div class="lever-header">
+          <span>Service Frequency</span>
+          <span id="freq-display" class="lever-value">Daily (7x/wk)</span>
+        </div>
+        <div class="freq-selector">
+          <button class="freq-btn" onclick="setFreq(3, '3x/wk', this)">3x / wk</button>
+          <button class="freq-btn" onclick="setFreq(5, '5x/wk', this)">5x / wk</button>
+          <button class="freq-btn active" onclick="setFreq(7, 'Daily (7x/wk)', this)">Daily</button>
+          <button class="freq-btn" onclick="setFreq(14, '2x Daily', this)">2x Daily</button>
+        </div>
+      </div>
+    </div>
+
+    <button class="launch-btn" onclick="dispatchRouteEvaluation()">
+      <span class="material-symbols-outlined">analytics</span>
+      Simulate Route & Pro-Forma
+    </button>
+  </div>
+
+  <!-- RIGHT: Radar Map HUD + Live Briefing Terminal -->
+  <div class="results-panel">
+    <!-- Live Geodesic Flight Radar Map -->
+    <div class="radar-container">
+      <div id="flight-map"></div>
+      <div class="hud-overlay">
+        <div class="hud-stat">
+          <span class="hud-label">Track</span>
+          <span class="hud-val accent" id="hud-track">AUS ➔ DUB</span>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-label">Great Circle</span>
+          <span class="hud-val" id="hud-dist">4,021 NM</span>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-label">Est. Block Time</span>
+          <span class="hud-val" id="hud-time">8h 55m</span>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-label">Cruising Alt</span>
+          <span class="hud-val accent" id="hud-alt">FL370</span>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-label">Candidate</span>
+          <span class="hud-val" id="hud-plane" style="color:#f59e0b;">A321XLR</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Briefing Log Terminal -->
+    <div id="log">
+      <div class="msg agent">
+        <div class="bubble">
+          <h2 style="margin-top:0; color:#38bdf8; display:flex; align-items:center; gap:0.5rem;">
+            <span class="material-symbols-outlined">radar</span>
+            Flight Deck & Navigation Radar Active
+          </h2>
+          <p>
+            The Great Circle trajectory above charts real-time geodesic waypoints, distance, and flight block duration between your selected origin and destination.
+          </p>
+          <p>
+            Click <strong>Simulate Route & Pro-Forma</strong> to run runway physics, fuel burn, and the full executive financial statement (CASM, RASM, and Annual EBITDA).
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <form class="chat-bar" id="custom-form" onsubmit="handleCustomChat(event)">
+      <input id="chat-input" placeholder="Ask strategic sensitivity (e.g. 'What if jet fuel spikes to $3.50/gal on this route?')..." autocomplete="off">
+      <button type="submit">Ask Strategy</button>
+    </form>
+  </div>
+</div>
+
+<script>
+// Airport database with coordinates
+const AIRPORTS = {
+  AUS: { name: "Austin", lat: 30.1945, lon: -97.6699 },
+  BOS: { name: "Boston", lat: 42.3656, lon: -71.0096 },
+  JFK: { name: "New York JFK", lat: 40.6413, lon: -73.7781 },
+  ORD: { name: "Chicago", lat: 41.9742, lon: -87.9073 },
+  SEA: { name: "Seattle", lat: 47.4502, lon: -122.3088 },
+  DFW: { name: "Dallas", lat: 32.8998, lon: -97.0403 },
+  DEN: { name: "Denver", lat: 39.8561, lon: -104.6737 },
+  LAX: { name: "Los Angeles", lat: 33.9416, lon: -118.4085 },
+  MIA: { name: "Miami", lat: 25.7959, lon: -80.2870 },
+  DUB: { name: "Dublin", lat: 53.4213, lon: -6.2701 },
+  LHR: { name: "London Heathrow", lat: 51.4700, lon: -0.4543 },
+  CDG: { name: "Paris CDG", lat: 49.0097, lon: 2.5479 },
+  FRA: { name: "Frankfurt", lat: 50.0379, lon: 8.5622 },
+  MAD: { name: "Madrid", lat: 40.4839, lon: -3.5680 },
+  HND: { name: "Tokyo Haneda", lat: 35.5494, lon: 139.7798 },
+  SYD: { name: "Sydney", lat: -33.9399, lon: 151.1753 },
+  SIN: { name: "Singapore", lat: 1.3644, lon: 103.9915 },
+  DXB: { name: "Dubai", lat: 25.2532, lon: 55.3657 }
+};
+
+let currentMode = "single";
+let selectedAircraft = "A321XLR";
+let selectedVsAircraft = "B787-8";
+let currentLF = 82;
+let currentFare = 680;
+let currentFreq = 7;
+let currentFreqLabel = "Daily (7x/wk)";
+
+let map, routePolyline, origMarker, destMarker, airplaneMarker;
+let animTimer = null;
+
+// Initialize Map
+function initFlightMap() {
+  map = L.map('flight-map', {
+    zoomControl: false,
+    attributionControl: false
+  }).setView([40, -45], 3);
+
+  // CartoDB DarkMatter Dark Tiles (Sleek Cockpit Style)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 18,
+    subdomains: 'abcd'
+  }).addTo(map);
+
+  drawRoute();
+}
+
+// Great Circle Geodesic arc points calculation
+function getGeodesicPoints(lat1, lon1, lat2, lon2, numPoints = 50) {
+  const toRad = deg => deg * Math.PI / 180;
+  const toDeg = rad => rad * 180 / Math.PI;
+
+  const φ1 = toRad(lat1), λ1 = toRad(lon1);
+  const φ2 = toRad(lat2), λ2 = toRad(lon2);
+
+  const d = 2 * Math.asin(Math.sqrt(
+    Math.sin((φ2 - φ1) / 2) ** 2 +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin((λ2 - λ1) / 2) ** 2
+  ));
+
+  const points = [];
+  for (let i = 0; i <= numPoints; i++) {
+    const f = i / numPoints;
+    const A = Math.sin((1 - f) * d) / Math.sin(d);
+    const B = Math.sin(f * d) / Math.sin(d);
+
+    const x = A * Math.cos(φ1) * Math.cos(λ1) + B * Math.cos(φ2) * Math.cos(λ2);
+    const y = A * Math.cos(φ1) * Math.sin(λ1) + B * Math.cos(φ2) * Math.sin(λ2);
+    const z = A * Math.sin(φ1) + B * Math.sin(φ2);
+
+    const lat = toDeg(Math.atan2(z, Math.sqrt(x * x + y * y)));
+    const lon = toDeg(Math.atan2(y, x));
+    points.push([lat, lon]);
+  }
+  return { points, distanceNM: Math.round(d * 3440.065) };
+}
+
+function calculateBearing(p1, p2) {
+  const toRad = deg => deg * Math.PI / 180;
+  const toDeg = rad => rad * 180 / Math.PI;
+  const φ1 = toRad(p1[0]), λ1 = toRad(p1[1]);
+  const φ2 = toRad(p2[0]), λ2 = toRad(p2[1]);
+  const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(λ2 - λ1);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+function drawRoute() {
+  const origKey = document.getElementById("origin-select").value;
+  const destKey = document.getElementById("dest-select").value;
+  const orig = AIRPORTS[origKey];
+  const dest = AIRPORTS[destKey];
+
+  if (!orig || !dest || origKey === destKey) return;
+
+  if (routePolyline) map.removeLayer(routePolyline);
+  if (origMarker) map.removeLayer(origMarker);
+  if (destMarker) map.removeLayer(destMarker);
+  if (airplaneMarker) map.removeLayer(airplaneMarker);
+  if (animTimer) clearInterval(animTimer);
+
+  const { points, distanceNM } = getGeodesicPoints(orig.lat, orig.lon, dest.lat, dest.lon);
+
+  // Update HUD values
+  document.getElementById("hud-track").textContent = `${origKey} ➔ ${destKey}`;
+  document.getElementById("hud-dist").textContent = `${distanceNM.toLocaleString()} NM`;
+  const blockHours = (distanceNM / 460) + 0.6;
+  const h = Math.floor(blockHours);
+  const m = Math.round((blockHours - h) * 60);
+  document.getElementById("hud-time").textContent = `${h}h ${m}m`;
+  document.getElementById("hud-plane").textContent = selectedAircraft;
+
+  // Pulsing airport blips
+  const pingIcon = L.divIcon({ className: 'airport-ping', iconSize: [14, 14], iconAnchor: [7, 7] });
+  origMarker = L.marker([orig.lat, orig.lon], { icon: pingIcon }).addTo(map);
+  destMarker = L.marker([dest.lat, dest.lon], { icon: pingIcon }).addTo(map);
+
+  // Glowing flight path polyline
+  routePolyline = L.polyline(points, {
+    color: '#38bdf8',
+    weight: 3,
+    opacity: 0.85,
+    dashArray: '6, 8'
+  }).addTo(map);
+
+  map.fitBounds(routePolyline.getBounds(), { padding: [50, 50] });
+
+  // Animated airplane icon
+  const planeDiv = document.createElement('div');
+  planeDiv.className = 'material-symbols-outlined airplane-icon';
+  planeDiv.textContent = 'flight';
+  const planeIcon = L.divIcon({
+    html: planeDiv,
+    className: 'plane-container',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+  });
+
+  airplaneMarker = L.marker(points[0], { icon: planeIcon }).addTo(map);
+
+  let step = 0;
+  animTimer = setInterval(() => {
+    step = (step + 1) % points.length;
+    const currentPos = points[step];
+    const nextPos = points[(step + 1) % points.length];
+    airplaneMarker.setLatLng(currentPos);
+
+    const bearing = calculateBearing(currentPos, nextPos);
+    planeDiv.style.transform = `rotate(${bearing - 45}deg)`;
+  }, 100);
+}
+
+function onAirportsChanged() {
+  drawRoute();
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById("mode-single").classList.toggle("active", mode === "single");
+  document.getElementById("mode-vs").classList.toggle("active", mode === "vs");
+  document.getElementById("vs-section").style.display = mode === "vs" ? "block" : "none";
+  document.getElementById("ac-section-label").textContent = mode === "vs" ? "Candidate Aircraft A" : "Deploy Candidate Aircraft";
+}
+
+function selectAircraft(model, el) {
+  selectedAircraft = model;
+  document.querySelectorAll(".fleet-section:first-of-type .ac-card").forEach(c => c.classList.remove("selected"));
+  el.classList.add("selected");
+  document.getElementById("hud-plane").textContent = model;
+}
+
+function selectVsAircraft(model, el) {
+  selectedVsAircraft = model;
+  document.querySelectorAll("#vs-section .ac-card").forEach(c => c.classList.remove("selected-vs"));
+  el.classList.add("selected-vs");
+}
+
+function updateLF(val) {
+  currentLF = val;
+  const disp = document.getElementById("lf-display");
+  disp.textContent = val + "%";
+  if (val < 65) disp.style.color = "#f87171";
+  else if (val < 78) disp.style.color = "#fbbf24";
+  else disp.style.color = "#34d399";
+}
+
+function updateFare(val) {
+  currentFare = val;
+  document.getElementById("fare-display").textContent = "$" + val;
+}
+
+function setFreq(freq, label, el) {
+  currentFreq = freq;
+  currentFreqLabel = label;
+  document.getElementById("freq-display").textContent = label;
+  document.querySelectorAll(".freq-btn").forEach(b => b.classList.remove("active"));
+  el.classList.add("active");
+}
+
+const log = document.getElementById("log");
+const chatInput = document.getElementById("chat-input");
+
+function appendBubble(who, contentHtml) {
+  const m = document.createElement("div");
+  m.className = "msg " + who;
+  const b = document.createElement("div");
+  b.className = "bubble";
+  b.innerHTML = contentHtml;
+  m.appendChild(b);
+  log.appendChild(m);
+  log.scrollTop = log.scrollHeight;
+  return b;
+}
+
+async function sendQuery(queryText) {
+  appendBubble("user", queryText);
+  const agentBubble = appendBubble("agent", '<div style="display:flex; align-items:center; gap:0.6rem; color:#38bdf8;"><span class="material-symbols-outlined" style="animation: spin 1s linear infinite;">sync</span> Running route evaluation & financial pro-forma on Vertex AI…</div>');
+
+  try {
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: queryText })
+    });
+    const raw = await res.text();
+    let data;
+    try { data = JSON.parse(raw); }
+    catch { throw new Error(`Server returned non-JSON (HTTP ${res.status}). ${raw.slice(0, 300)}`); }
+
+    const parts = data.parts || [];
+    const texts = parts.filter(p => p && (p.kind === "text" || (!p.kind && p.text))).map(p => p.text || "");
+    const combined = texts.join("\n").trim();
+
+    if (combined) {
+      if (window.marked && typeof marked.parse === "function") {
+        agentBubble.innerHTML = marked.parse(combined);
+      } else {
+        agentBubble.textContent = combined;
+      }
+    } else {
+      agentBubble.textContent = "(No analysis returned)";
+    }
+  } catch (err) {
+    agentBubble.innerHTML = `<span style="color:#f87171;">Error executing route simulation: ${err.message}</span>`;
+  }
+  log.scrollTop = log.scrollHeight;
+}
+
+function dispatchRouteEvaluation() {
+  const orig = document.getElementById("origin-select").value;
+  const dest = document.getElementById("dest-select").value;
+
+  if (orig === dest) {
+    alert("Origin and destination airports must be different.");
+    return;
+  }
+
+  drawRoute();
+
+  let prompt = "";
+  if (currentMode === "vs") {
+    prompt = `Benchmark a head-to-head fleet comparison between ${selectedAircraft} and ${selectedVsAircraft} on a new route from ${orig} to ${dest}. Frequency: ${currentFreq} flights per week (${currentFreqLabel}). Projected load factor: ${currentLF}%. Average one-way ticket fare: $${currentFare}. Provide operating cost per flight, breakeven load factor, CASM, and annual EBITDA. Which aircraft do you recommend to management?`;
+  } else {
+    prompt = `Evaluate launching a new commercial route from ${orig} to ${dest} deploying the ${selectedAircraft}. Frequency: ${currentFreq} flights per week. Projected load factor: ${currentLF}%. Average one-way ticket fare: $${currentFare}. Check airport runway feasibility, calculate distance and block hours, and model the full financial pro-forma (annual EBITDA, operating margin %, CASM, and breakeven load factor).`;
+  }
+
+  sendQuery(prompt);
+}
+
+function handleCustomChat(ev) {
+  ev.preventDefault();
+  const text = chatInput.value.trim();
+  if (!text) return;
+  chatInput.value = "";
+  sendQuery(text);
+}
+
+// Window load init
+window.addEventListener("DOMContentLoaded", () => {
+  initFlightMap();
+});
+</script>
+
+</body>
+</html>

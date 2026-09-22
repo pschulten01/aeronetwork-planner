@@ -936,9 +936,32 @@ function appendBubble(who, contentHtml) {
   return b;
 }
 
+let isEvaluating = false;
+
 async function sendQuery(queryText) {
+  if (isEvaluating) return;
+  isEvaluating = true;
+
+  const launchBtn = document.querySelector(".launch-btn");
+  if (launchBtn) {
+    launchBtn.disabled = true;
+    launchBtn.style.opacity = "0.7";
+    launchBtn.innerHTML = '<span class="material-symbols-outlined" style="animation: spin 1s linear infinite;">sync</span> Computing...';
+  }
+
   appendBubble("user", queryText);
-  const agentBubble = appendBubble("agent", '<div style="display:flex; align-items:center; gap:0.6rem; color:#38bdf8;"><span class="material-symbols-outlined" style="animation: spin 1s linear infinite;">sync</span> Running route evaluation & financial pro-forma on Vertex AI…</div>');
+  const agentBubble = appendBubble("agent", '<div style="display:flex; align-items:center; gap:0.6rem; color:#38bdf8;"><span class="material-symbols-outlined" style="animation: spin 1s linear infinite;">sync</span> <span id="loading-text">Running route evaluation on Vertex AI…</span> <span id="elapsed-counter" style="font-family:\'JetBrains Mono\'; opacity:0.8;">(0s)</span></div>');
+
+  let seconds = 0;
+  const timer = setInterval(() => {
+    seconds++;
+    const counter = document.getElementById("elapsed-counter");
+    const label = document.getElementById("loading-text");
+    if (counter) counter.textContent = `(${seconds}s)`;
+    if (label && seconds > 10) {
+      label.textContent = "Warming up Vertex AI Reasoning Engine instance…";
+    }
+  }, 1000);
 
   try {
     const res = await fetch("/chat", {
@@ -946,6 +969,7 @@ async function sendQuery(queryText) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: queryText })
     });
+    clearInterval(timer);
     const raw = await res.text();
     let data;
     try { data = JSON.parse(raw); }
@@ -965,10 +989,28 @@ async function sendQuery(queryText) {
       agentBubble.textContent = "(No analysis returned)";
     }
   } catch (err) {
+    clearInterval(timer);
     agentBubble.innerHTML = `<span style="color:#f87171;">Error executing route simulation: ${err.message}</span>`;
+  } finally {
+    clearInterval(timer);
+    isEvaluating = false;
+    if (launchBtn) {
+      launchBtn.disabled = false;
+      launchBtn.style.opacity = "1";
+      launchBtn.innerHTML = '<span class="material-symbols-outlined">analytics</span> Simulate Route & Pro-Forma';
+    }
   }
   log.scrollTop = log.scrollHeight;
 }
+
+// Background heartbeat to keep the cloud reasoning engine and Cloud Run warm
+setInterval(() => {
+  fetch("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: "ping" })
+  }).catch(() => {});
+}, 180000); // Every 3 minutes
 
 function dispatchRouteEvaluation() {
   const orig = document.getElementById("origin-select").value;
